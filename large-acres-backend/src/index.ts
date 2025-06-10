@@ -63,6 +63,8 @@ async function getOrCreateUser(db: D1Database, userId: string) {
 	return userResult as { id: string; horseshoes: number; last_daily_bonus: string };
 }
 
+const NFT_CRAFTING_REQUIREMENT = 15; // 15 fragments needed to craft an NFT
+const HORSESHOES_PER_AD_REWARD = 15;
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -239,6 +241,195 @@ export default {
 
 			} catch (e: any) {
 				console.error("Error in /api/getUserData:", e.message, e.stack);
+				return new Response(JSON.stringify({ error: "Server error", details: e.message }), {
+					status: 500, headers: { 'Content-Type': 'application/json' }
+				});
+			}
+		}
+		// START ADDITION: New POST endpoint for awarding fragments after star payment
+		else if (request.method === "POST" && path === "/api/awardStarFragments") {
+			try {
+				const { userId /*, paymentId, starsAmount */ } = await request.json() as { userId: string, paymentId?: string, starsAmount?: number };
+
+				if (!userId) {
+					return new Response(JSON.stringify({ error: "Missing userId" }), {
+						status: 400, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+
+				// Ensure user exists (though they should if they made a payment)
+				await getOrCreateUser(env.DB, userId);
+
+				const numberOfFragmentsToAward = Math.floor(Math.random() * 6) + 5; // Randomly 5 to 10 fragments
+				const awardedFragmentsDetails = [];
+
+				for (let i = 0; i < numberOfFragmentsToAward; i++) {
+					const randomNftId = `nft_type_${Math.ceil(Math.random() * 10)}`; // 10 types of NFTs
+
+					// Check if user already has this fragment type
+					let fragmentRow = await env.DB.prepare("SELECT fragments FROM nft_fragments WHERE user_id = ? AND nft_id = ?")
+						.bind(userId, randomNftId)
+						.first<{ fragments: number }>();
+
+					let currentFragmentCount = 0;
+					if (fragmentRow) {
+						currentFragmentCount = fragmentRow.fragments;
+					}
+
+					const newNftFragmentCount = currentFragmentCount + 1;
+
+					if (fragmentRow) {
+						await env.DB.prepare("UPDATE nft_fragments SET fragments = ? WHERE user_id = ? AND nft_id = ?")
+							.bind(newNftFragmentCount, userId, randomNftId)
+							.run();
+					} else {
+						await env.DB.prepare("INSERT INTO nft_fragments (user_id, nft_id, fragments) VALUES (?, ?, ?)")
+							.bind(userId, randomNftId, newNftFragmentCount) // new count is 1 if new
+							.run();
+					}
+					awardedFragmentsDetails.push({ nftId: randomNftId, newCount: newNftFragmentCount });
+				}
+
+				// Record a single transaction for this bundle of fragments
+				await env.DB.prepare(
+					"INSERT INTO transactions (transaction_id, user_id, type, amount, date) VALUES (?, ?, ?, ?, ?)"
+				).bind(
+					crypto.randomUUID(),
+					userId,
+					'stars_payment_fragments',
+					numberOfFragmentsToAward, // Store number of fragments awarded in 'amount'
+					new Date().toISOString()
+				).run();
+
+				return new Response(JSON.stringify({
+					success: true,
+					message: `Successfully awarded ${numberOfFragmentsToAward} NFT fragments.`,
+					awardedFragmentsCount: numberOfFragmentsToAward,
+					fragmentsDetails: awardedFragmentsDetails // Could be useful for client
+				}), { headers: { 'Content-Type': 'application/json' } });
+
+			} catch (e: any) {
+				console.error("Error in /api/awardStarFragments:", e.message, e.stack);
+				return new Response(JSON.stringify({ error: "Server error", details: e.message }), {
+					status: 500, headers: { 'Content-Type': 'application/json' }
+				});
+			}
+		}
+		// START ADDITION: New POST endpoint for crafting NFTs
+		else if (request.method === "POST" && path === "/api/craftNft") {
+			try {
+				const { userId, nftIdToCraft } = await request.json() as { userId: string, nftIdToCraft: string };
+
+				if (!userId || !nftIdToCraft) {
+					return new Response(JSON.stringify({ error: "Missing userId or nftIdToCraft" }), {
+						status: 400, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+
+				// 1. Check if user already crafted this NFT
+				const existingCraftedNft = await env.DB.prepare(
+					"SELECT nft_id FROM user_crafted_nfts WHERE user_id = ? AND nft_id = ?"
+				).bind(userId, nftIdToCraft).first();
+
+				if (existingCraftedNft) {
+					return new Response(JSON.stringify({
+						success: false,
+						message: `NFT ${nftIdToCraft} already crafted.`
+					}), { status: 400, headers: { 'Content-Type': 'application/json' } });
+				}
+
+				// 2. Check if user has enough fragments
+				const fragmentRow = await env.DB.prepare(
+					"SELECT fragments FROM nft_fragments WHERE user_id = ? AND nft_id = ?"
+				).bind(userId, nftIdToCraft).first<{ fragments: number }>();
+
+				if (!fragmentRow || fragmentRow.fragments < NFT_CRAFTING_REQUIREMENT) {
+					return new Response(JSON.stringify({
+						success: false,
+						message: `Insufficient fragments for ${nftIdToCraft}. Need ${NFT_CRAFTING_REQUIREMENT}. You have ${fragmentRow?.fragments || 0}.`
+					}), { status: 400, headers: { 'Content-Type': 'application/json' } });
+				}
+
+				// 3. Deduct fragments
+				const newFragmentCount = fragmentRow.fragments - NFT_CRAFTING_REQUIREMENT;
+				if (newFragmentCount > 0) {
+					await env.DB.prepare(
+						"UPDATE nft_fragments SET fragments = ? WHERE user_id = ? AND nft_id = ?"
+					).bind(newFragmentCount, userId, nftIdToCraft).run();
+				} else {
+					// If count becomes 0, delete the fragment row for cleanliness
+					await env.DB.prepare(
+						"DELETE FROM nft_fragments WHERE user_id = ? AND nft_id = ?"
+					).bind(userId, nftIdToCraft).run();
+				}
+
+				// 4. Record the crafted NFT
+				await env.DB.prepare(
+					"INSERT INTO user_crafted_nfts (user_id, nft_id, crafted_at) VALUES (?, ?, ?)"
+				).bind(userId, nftIdToCraft, new Date().toISOString()).run();
+
+				// 5. Log transaction (without description)
+				await env.DB.prepare(
+					"INSERT INTO transactions (transaction_id, user_id, type, amount, date) VALUES (?, ?, ?, ?, ?)"
+				).bind(
+					crypto.randomUUID(),
+					userId,
+					'nft_crafted',
+					-NFT_CRAFTING_REQUIREMENT, // Representing cost in fragments
+					new Date().toISOString()
+				).run();
+
+				return new Response(JSON.stringify({
+					success: true,
+					message: `Successfully crafted NFT: ${nftIdToCraft}!`,
+					nftId: nftIdToCraft,
+					newFragmentBalance: newFragmentCount
+				}), { headers: { 'Content-Type': 'application/json' } });
+
+			} catch (e: any) {
+				console.error("Error in /api/craftNft:", e.message, e.stack);
+				return new Response(JSON.stringify({ error: "Server error", details: e.message }), {
+					status: 500, headers: { 'Content-Type': 'application/json' }
+				});
+			}
+		}
+		// START ADDITION: New POST endpoint for awarding ad rewards
+		else if (request.method === "POST" && path === "/api/awardAdReward") {
+			try {
+				const { userId } = await request.json() as { userId: string };
+
+				if (!userId) {
+					return new Response(JSON.stringify({ error: "Missing userId" }), {
+						status: 400, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+
+				const user = await getOrCreateUser(env.DB, userId);
+				const newHorseshoeBalance = user.horseshoes + HORSESHOES_PER_AD_REWARD;
+
+				await env.DB.prepare(
+					"UPDATE users SET horseshoes = ? WHERE id = ?"
+				).bind(newHorseshoeBalance, userId).run();
+
+				await env.DB.prepare(
+					"INSERT INTO transactions (transaction_id, user_id, type, amount, date) VALUES (?, ?, ?, ?, ?)"
+				).bind(
+					crypto.randomUUID(),
+					userId,
+					'ad_reward_horseshoes',
+					HORSESHOES_PER_AD_REWARD,
+					new Date().toISOString()
+				).run();
+
+				return new Response(JSON.stringify({
+					success: true,
+					message: `Successfully awarded ${HORSESHOES_PER_AD_REWARD} horseshoes for watching an ad!`,
+					awardedAmount: HORSESHOES_PER_AD_REWARD,
+					newHorseshoeBalance: newHorseshoeBalance
+				}), { headers: { 'Content-Type': 'application/json' } });
+
+			} catch (e: any) {
+				console.error("Error in /api/awardAdReward:", e.message, e.stack);
 				return new Response(JSON.stringify({ error: "Server error", details: e.message }), {
 					status: 500, headers: { 'Content-Type': 'application/json' }
 				});
