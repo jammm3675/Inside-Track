@@ -3,7 +3,6 @@
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
-	{
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "large-acres-backend",
   "main": "dist/index.js",  // <-- Changed to output JS file
