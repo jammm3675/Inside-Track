@@ -2,7 +2,69 @@
 
 export interface Env {
 	DB: D1Database;
+	BOT_TOKEN?: string; // Added for initData validation
 }
+
+// START ADDITION: Telegram initData validation function
+async function isValidTelegramInitData(initDataString: string, botToken: string | undefined): Promise<boolean> {
+    if (!initDataString) {
+        console.warn("isValidTelegramInitData: initDataString is missing.");
+        return false;
+    }
+
+    const params = new URLSearchParams(initDataString);
+    const hash = params.get('hash');
+
+    if (!hash) {
+        console.warn("isValidTelegramInitData: hash is missing from initDataString.");
+        return false;
+    }
+
+    params.delete('hash'); // Remove hash before sorting and creating data-check-string
+
+    // Keys must be sorted alphabetically
+    const dataCheckArr: string[] = [];
+    const sortedKeys = Array.from(params.keys()).sort();
+    for (const key of sortedKeys) {
+        dataCheckArr.push(`${key}=${params.get(key)}`);
+    }
+    const dataCheckString = dataCheckArr.join('\n');
+
+    if (!botToken) {
+        console.warn("isValidTelegramInitData: BOT_TOKEN is not available. Skipping actual cryptographic validation. Returning true for development purposes as hash exists.");
+        return true; // Permissive mode for development when BOT_TOKEN is not set
+    }
+
+    try {
+        // Actual crypto validation using Web Crypto API
+        const encoder = new TextEncoder();
+        // 1. Create the secret_key: HMAC-SHA256 hash of "WebAppData" using bot_token as the key.
+        const secretKeyMaterial = await crypto.subtle.importKey(
+            'raw', encoder.encode(botToken),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false, ['sign']
+        );
+        const secretKey = await crypto.subtle.sign('HMAC', secretKeyMaterial, encoder.encode('WebAppData'));
+
+        // 2. Create the validation_key: HMAC-SHA256 hash of data_check_string using the secret_key.
+        const validationKeyMaterial = await crypto.subtle.importKey(
+            'raw', secretKey,
+            { name: 'HMAC', hash: 'SHA-256' },
+            false, ['sign']
+        );
+        const calculatedHashBytes = await crypto.subtle.sign('HMAC', validationKeyMaterial, encoder.encode(dataCheckString));
+
+        const calculatedHashHex = Array.from(new Uint8Array(calculatedHashBytes))
+            .map(b => b.toString(16).padStart(2, '0')).join('');
+
+        console.log("Calculated Hash:", calculatedHashHex, "Received Hash:", hash);
+        return calculatedHashHex === hash;
+    } catch (error) {
+        console.error("Error during Telegram initData cryptographic validation:", error);
+        return false; // Fail validation on crypto error
+    }
+}
+// END ADDITION
 
 // Odds for each of the 5 horses. Sum should ideally be > 1 to represent bookmaker's cut.
 // These are just example odds.
@@ -75,7 +137,16 @@ export default {
 		// Basic router
 		if (request.method === "POST" && path === "/api/freeBet") {
 			try {
-				const { userId, horseId, betAmount } = await request.json() as { userId: string, horseId: number, betAmount: number };
+				// MODIFIED: Add initData to body and validate
+				const body = await request.json() as { userId: string, horseId: number, betAmount: number, initData?: string };
+				if (!body.initData || !(await isValidTelegramInitData(body.initData, env.BOT_TOKEN))) {
+					console.error("Failed Telegram initData validation for /api/freeBet");
+					return new Response(JSON.stringify({ error: "Unauthorized: Invalid initData" }), {
+						status: 401, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+				const { userId, horseId, betAmount } = body;
+				// END MODIFICATION
 
 				if (!userId || !horseId || betAmount == null || betAmount <= 0) {
 					return new Response(JSON.stringify({ error: "Missing userId, horseId, or invalid betAmount" }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -162,7 +233,16 @@ export default {
 		// START ADDITION: New endpoint for daily bonus
 		else if (request.method === "POST" && path === "/api/claimDailyBonus") {
 			try {
-				const { userId } = await request.json() as { userId: string };
+				// MODIFIED: Add initData to body and validate
+				const body = await request.json() as { userId: string, initData?: string };
+				if (!body.initData || !(await isValidTelegramInitData(body.initData, env.BOT_TOKEN))) {
+					console.error("Failed Telegram initData validation for /api/claimDailyBonus");
+					return new Response(JSON.stringify({ error: "Unauthorized: Invalid initData" }), {
+						status: 401, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+				const { userId } = body;
+				// END MODIFICATION
 
 				if (!userId) {
 					return new Response(JSON.stringify({ error: "Missing userId" }), {
@@ -230,13 +310,20 @@ export default {
 					return { nft_id: f.nft_id, count: f.fragments };
 				}) : [];
 
+				// START ADDITION: Fetch crafted NFTs for the user
+				const craftedNftStmt = env.DB.prepare("SELECT nft_id, crafted_at FROM user_crafted_nfts WHERE user_id = ? ORDER BY crafted_at DESC");
+				const craftedNftResults = await craftedNftStmt.bind(userId).all<{nft_id: string, crafted_at: string}>();
+				const userCraftedNfts = craftedNftResults.results || [];
+				// END ADDITION
+
 				return new Response(JSON.stringify({
 					success: true,
 					userId: user.id,
 					horseshoes: user.horseshoes,
 					lastDailyBonus: user.last_daily_bonus,
-					fragments: userFragments, // Array of {nft_id, count}
-					totalNftFragments: totalNftFragments // Sum of all fragment counts
+					fragments: userFragments,
+					totalNftFragments: totalNftFragments,
+					craftedNfts: userCraftedNfts // Add craftedNfts to the response
 				}), { headers: { 'Content-Type': 'application/json' } });
 
 			} catch (e: any) {
@@ -249,7 +336,16 @@ export default {
 		// START ADDITION: New POST endpoint for awarding fragments after star payment
 		else if (request.method === "POST" && path === "/api/awardStarFragments") {
 			try {
-				const { userId /*, paymentId, starsAmount */ } = await request.json() as { userId: string, paymentId?: string, starsAmount?: number };
+				// MODIFIED: Add initData to body and validate
+				const body = await request.json() as { userId: string, paymentId?: string, starsAmount?: number, initData?: string };
+				if (!body.initData || !(await isValidTelegramInitData(body.initData, env.BOT_TOKEN))) {
+					console.error("Failed Telegram initData validation for /api/awardStarFragments");
+					return new Response(JSON.stringify({ error: "Unauthorized: Invalid initData" }), {
+						status: 401, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+				const { userId /*, paymentId, starsAmount */ } = body;
+				// END MODIFICATION
 
 				if (!userId) {
 					return new Response(JSON.stringify({ error: "Missing userId" }), {
@@ -318,7 +414,16 @@ export default {
 		// START ADDITION: New POST endpoint for crafting NFTs
 		else if (request.method === "POST" && path === "/api/craftNft") {
 			try {
-				const { userId, nftIdToCraft } = await request.json() as { userId: string, nftIdToCraft: string };
+				// MODIFIED: Add initData to body and validate
+				const body = await request.json() as { userId: string, nftIdToCraft: string, initData?: string };
+				if (!body.initData || !(await isValidTelegramInitData(body.initData, env.BOT_TOKEN))) {
+					console.error("Failed Telegram initData validation for /api/craftNft");
+					return new Response(JSON.stringify({ error: "Unauthorized: Invalid initData" }), {
+						status: 401, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+				const { userId, nftIdToCraft } = body;
+				// END MODIFICATION
 
 				if (!userId || !nftIdToCraft) {
 					return new Response(JSON.stringify({ error: "Missing userId or nftIdToCraft" }), {
@@ -396,7 +501,16 @@ export default {
 		// START ADDITION: New POST endpoint for awarding ad rewards
 		else if (request.method === "POST" && path === "/api/awardAdReward") {
 			try {
-				const { userId } = await request.json() as { userId: string };
+				// MODIFIED: Add initData to body and validate
+				const body = await request.json() as { userId: string, initData?: string };
+				if (!body.initData || !(await isValidTelegramInitData(body.initData, env.BOT_TOKEN))) {
+					console.error("Failed Telegram initData validation for /api/awardAdReward");
+					return new Response(JSON.stringify({ error: "Unauthorized: Invalid initData" }), {
+						status: 401, headers: { 'Content-Type': 'application/json' }
+					});
+				}
+				const { userId } = body;
+				// END MODIFICATION
 
 				if (!userId) {
 					return new Response(JSON.stringify({ error: "Missing userId" }), {

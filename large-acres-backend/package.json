@@ -3,10 +3,12 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-  "build": "tsc src/index.ts --outDir dist --module esnext --target es2020 --lib es2020,dom --esModuleInterop --skipLibCheck",
-  "deploy": "wrangler deploy",
-  "dev": "wrangler dev"
-},
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest",
+		"cf-typegen": "wrangler types"
+	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.19",
 		"typescript": "^5.5.2",

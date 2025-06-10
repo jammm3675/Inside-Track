@@ -4,16 +4,15 @@ let tgUserId = null;
 
 // Store detailed fragments and crafted NFTs globally for UI updates
 let userOwnedFragments = [];
-let userCraftedNfts = []; // To be populated from getUserData if we add that to backend
+let userCraftedNfts = [];
 
-function updatePlayerInfoDisplay(userId, horseshoes, totalNftFragments) { // Modified to accept totalNftFragments
+function updatePlayerInfoDisplay(userId, horseshoes, totalNftFragments) {
     const userIdElement = document.getElementById('user-id');
     const horseshoeBalanceElement = document.getElementById('horseshoes-balance');
-    const nftFragmentsBalanceElement = document.getElementById('nft-fragments-balance'); // This will show total fragments
+    const nftFragmentsBalanceElement = document.getElementById('nft-fragments-balance');
 
     if (userIdElement) userIdElement.textContent = userId || 'N/A';
     if (horseshoeBalanceElement) horseshoeBalanceElement.textContent = horseshoes !== undefined ? horseshoes.toString() : 'N/A';
-    // Display total NFT fragments
     if (nftFragmentsBalanceElement) nftFragmentsBalanceElement.textContent = totalNftFragments !== undefined ? totalNftFragments.toString() : 'N/A';
 }
 
@@ -21,25 +20,29 @@ async function fetchGameData(currentUserId) {
     if (!currentUserId) {
         console.log("User ID not available, cannot fetch game data initially.");
         updatePlayerInfoDisplay(currentUserId, 0, 0);
-        renderNftFragmentList(); // Render empty/default state
-        renderUserCraftedNfts(); // Render empty/default state
+        renderNftFragmentList();
+        renderUserCraftedNfts();
         return;
     }
 
     updatePlayerInfoDisplay(currentUserId, 'Loading...', 'Loading...');
-    // Also indicate loading in the specific list areas
     const fragmentListDiv = document.getElementById('nft-fragment-list');
     if (fragmentListDiv) fragmentListDiv.innerHTML = '<p>Loading your fragments...</p>';
     const collectionListDiv = document.getElementById('user-nft-collection-list');
     if (collectionListDiv) collectionListDiv.innerHTML = '<p>Loading your collection...</p>';
 
     try {
+        // NOTE: /api/getUserData is a GET request and typically wouldn't send initData in body.
+        // For GET requests, initData would be a query param if needed, but usually not for fetching public/user-specific data if session is managed.
+        // However, our current backend for /api/getUserData does not implement initData validation,
+        // which is acceptable as it's a GET request and not performing state changes.
         const response = await fetch(`/api/getUserData?userId=${currentUserId}`);
+
         if (!response.ok) {
             console.warn(`Failed to fetch initial user data: ${response.status}. Response: ${await response.text()}`);
             updatePlayerInfoDisplay(currentUserId, 0, 0);
-            userOwnedFragments = []; // Reset
-            userCraftedNfts = []; // Reset
+            userOwnedFragments = [];
+            userCraftedNfts = [];
             renderNftFragmentList();
             renderUserCraftedNfts();
             return;
@@ -48,11 +51,11 @@ async function fetchGameData(currentUserId) {
         const data = await response.json();
         if (data && data.success) {
             updatePlayerInfoDisplay(currentUserId, data.horseshoes, data.totalNftFragments);
-            userOwnedFragments = data.fragments || []; // Store for crafting UI
-            userCraftedNfts = data.craftedNfts || []; // Assuming getUserData will also return crafted NFTs
+            userOwnedFragments = data.fragments || [];
+            userCraftedNfts = data.craftedNfts || [];
 
             renderNftFragmentList();
-            renderUserCraftedNfts(); // Render the user's collection of crafted NFTs
+            renderUserCraftedNfts();
 
         } else {
             console.warn("Received non-successful response or malformed data from /api/getUserData", data);
@@ -72,10 +75,9 @@ async function fetchGameData(currentUserId) {
     }
 }
 
-// FUNCTION for handling daily bonus claim
 async function handleClaimDailyBonus() {
-    if (!tgUserId) {
-        alert("User ID not available. Cannot claim bonus.");
+    if (!tgUserId || !window.Telegram?.WebApp?.initData) {
+        alert("User ID or Telegram initData not available. Cannot claim bonus.");
         return;
     }
 
@@ -83,12 +85,14 @@ async function handleClaimDailyBonus() {
     dailyBonusMessageElement.textContent = 'Claiming...';
 
     try {
+        const payload = {
+            userId: tgUserId,
+            initData: window.Telegram.WebApp.initData // Add initData
+        };
         const response = await fetch('/api/claimDailyBonus', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ userId: tgUserId }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         });
 
         const data = await response.json();
@@ -105,7 +109,7 @@ async function handleClaimDailyBonus() {
                 alert(data.message);
             }
         } else {
-            dailyBonusMessageElement.textContent = `Error: ${data.error || 'Failed to claim bonus.'}`;
+            dailyBonusMessageElement.textContent = `Error: ${data.error || 'Failed to claim bonus.'} (Status: ${response.status})`;
             alert(`Error claiming bonus: ${data.error || response.statusText}`);
         }
     } catch (error) {
@@ -115,10 +119,9 @@ async function handleClaimDailyBonus() {
     }
 }
 
-// FUNCTION for handling free bets (horseshoes)
 async function handleFreeBet() {
-    if (!tgUserId) {
-        alert("User ID not available. Cannot place bet.");
+    if (!tgUserId || !window.Telegram?.WebApp?.initData) {
+        alert("User ID or Telegram initData not available. Cannot place bet.");
         return;
     }
 
@@ -141,16 +144,16 @@ async function handleFreeBet() {
     winnerInfoElement.textContent = 'Racing...';
 
     try {
+        const payload = {
+            userId: tgUserId,
+            horseId: horseId,
+            betAmount: betAmount,
+            initData: window.Telegram.WebApp.initData // Add initData
+        };
         const response = await fetch('/api/freeBet', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: tgUserId,
-                horseId: horseId,
-                betAmount: betAmount,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         });
 
         const data = await response.json();
@@ -177,7 +180,7 @@ async function handleFreeBet() {
             fetchGameData(tgUserId);
 
         } else {
-            winnerInfoElement.textContent = `Error: ${data.error || 'Failed to place bet.'}`;
+            winnerInfoElement.textContent = `Error: ${data.error || 'Failed to place bet.'} (Status: ${response.status})`;
             alert(`Error placing bet: ${data.error || response.statusText}`);
             fetchGameData(tgUserId);
         }
@@ -189,10 +192,9 @@ async function handleFreeBet() {
     }
 }
 
-// FUNCTION for handling star bets (paid mode)
 async function handleStarBet() {
-    if (!tgUserId) {
-        alert("User ID not available. Cannot make a stars payment.");
+    if (!tgUserId || !window.Telegram?.WebApp?.initData) {
+        alert("User ID or Telegram initData not available. Cannot make a stars payment.");
         return;
     }
 
@@ -209,15 +211,15 @@ async function handleStarBet() {
     alert(`Simulating Telegram Stars payment for ${starsToSpend} stars. In a real app, the Telegram payment UI would open.`);
 
     try {
+        const payload = {
+            userId: tgUserId,
+            starsAmount: starsToSpend,
+            initData: window.Telegram.WebApp.initData // Add initData
+        };
         const response = await fetch('/api/awardStarFragments', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: tgUserId,
-                starsAmount: starsToSpend
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         });
 
         const data = await response.json();
@@ -228,7 +230,7 @@ async function handleStarBet() {
             alert(message);
             fetchGameData(tgUserId);
         } else {
-            const errorMessage = `Star payment process failed: ${data.error || 'Unknown error'}`;
+            const errorMessage = `Star payment process failed: ${data.error || 'Unknown error'} (Status: ${response.status})`;
             winnerInfoElement.textContent = errorMessage;
             alert(errorMessage);
         }
@@ -240,7 +242,6 @@ async function handleStarBet() {
     }
 }
 
-// FUNCTION to render NFT fragment list and craft buttons
 function renderNftFragmentList() {
     const fragmentListDiv = document.getElementById('nft-fragment-list');
     if (!fragmentListDiv) return;
@@ -272,7 +273,6 @@ function renderNftFragmentList() {
     });
 }
 
-// FUNCTION to render user's collection of CRAFTED NFTs
 function renderUserCraftedNfts() {
     const collectionListDiv = document.getElementById('user-nft-collection-list');
     if (!collectionListDiv) return;
@@ -294,10 +294,9 @@ function renderUserCraftedNfts() {
     collectionListDiv.innerHTML = html;
 }
 
-// FUNCTION to handle NFT crafting event
 async function handleCraftNft(event) {
-    if (!tgUserId) {
-        alert("User ID not available. Cannot craft NFT.");
+    if (!tgUserId || !window.Telegram?.WebApp?.initData) {
+        alert("User ID or Telegram initData not available. Cannot craft NFT.");
         return;
     }
     const nftIdToCraft = event.target.dataset.nftid;
@@ -311,15 +310,15 @@ async function handleCraftNft(event) {
     event.target.disabled = true;
 
     try {
+        const payload = {
+            userId: tgUserId,
+            nftIdToCraft: nftIdToCraft,
+            initData: window.Telegram.WebApp.initData // Add initData
+        };
         const response = await fetch('/api/craftNft', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: tgUserId,
-                nftIdToCraft: nftIdToCraft,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         });
 
         const data = await response.json();
@@ -329,7 +328,7 @@ async function handleCraftNft(event) {
             alert(data.message);
             fetchGameData(tgUserId);
         } else {
-            craftingStatusMessageElement.textContent = `Crafting failed: ${data.message || 'Unknown error'}`;
+            craftingStatusMessageElement.textContent = `Crafting failed: ${data.message || 'Unknown error'} (Status: ${response.status})`;
             alert(`Crafting failed: ${data.message || 'Unknown error'}`);
             event.target.disabled = false;
         }
@@ -341,19 +340,14 @@ async function handleCraftNft(event) {
     }
 }
 
-// NEW FUNCTION to handle rewarded ad flow
 async function handleWatchAd() {
-    if (!tgUserId) {
-        alert("User ID not available. Cannot process ad reward.");
+    if (!tgUserId || !window.Telegram?.WebApp?.initData) { // Added initData check
+        alert("User ID or Telegram initData not available. Cannot process ad reward.");
         return;
     }
 
-    if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.showAd) {
+    if (!window.Telegram.WebApp.showAd) { // Simplified check for showAd
         alert("Telegram Ad feature is not available in this environment.");
-        // Potentially call the reward API directly for testing outside Telegram
-        // if (confirm("Simulate successful ad watch for testing?")) {
-        //     await awardAdRewardApiCall();
-        // }
         return;
     }
 
@@ -362,7 +356,7 @@ async function handleWatchAd() {
 
     try {
         await window.Telegram.WebApp.showAd();
-        await awardAdRewardApiCall();
+        await awardAdRewardApiCall(); // Call the separate API call function
 
     } catch (error) {
         console.error("Error showing ad or ad not available:", error);
@@ -371,16 +365,17 @@ async function handleWatchAd() {
     }
 }
 
-// Helper function for the API call to award ad reward
 async function awardAdRewardApiCall() {
     const watchAdButton = document.getElementById('watch-ad-button');
     try {
+        const payload = {
+            userId: tgUserId,
+            initData: window.Telegram.WebApp.initData // Add initData
+        };
         const response = await fetch('/api/awardAdReward', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ userId: tgUserId }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
         });
 
         const data = await response.json();
@@ -392,7 +387,7 @@ async function awardAdRewardApiCall() {
                 horseshoeBalanceElement.textContent = data.newHorseshoeBalance.toString();
             }
         } else {
-            alert(`Failed to get reward: ${data.error || 'Unknown error'}`);
+            alert(`Failed to get reward: ${data.error || 'Unknown error'} (Status: ${response.status})`);
         }
     } catch (error) {
         console.error('Error awarding ad reward:', error);
@@ -408,11 +403,15 @@ window.addEventListener('load', () => {
         tg.ready();
         tg.expand();
 
-        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initData) { // Ensure initData is available
             tgUser = tg.initDataUnsafe.user;
             tgUserId = tgUser.id.toString();
+            // It's important that window.Telegram.WebApp.initData is available before making API calls that need it.
+            // tg.ready() should ensure this, but explicit check is good.
+            console.log("Telegram.WebApp.initData:", window.Telegram.WebApp.initData);
             fetchGameData(tgUserId);
         } else {
+            console.warn('Telegram user data or initData not available.');
             updatePlayerInfoDisplay('Not in Telegram', 0, 0);
             renderNftFragmentList();
             renderUserCraftedNfts();
