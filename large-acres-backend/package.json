@@ -1,18 +1,17 @@
 {
-	"name": "large-acres-backend",
-	"version": "0.0.0",
-	"private": true,
-	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
-		"start": "wrangler dev",
-		"test": "vitest",
-		"cf-typegen": "wrangler types"
-	},
-	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.8.19",
-		"typescript": "^5.5.2",
-		"vitest": "~3.0.7",
-		"wrangler": "^4.19.1"
-	}
+  "name": "large-acres-backend", // Or your existing name
+  "version": "0.0.0",         // Or your existing version
+  // ... any other existing properties like "private": true ...
+  "scripts": {
+    "build": "tsc src/index.ts --outDir dist --module esnext --target es2020 --lib es2020,dom --esModuleInterop --skipLibCheck --moduleResolution node",
+    "deploy": "wrangler deploy src/index.ts", // You can use this if you revert wrangler.jsonc main to src/index.ts
+                                             // OR "deploy": "npm run build && wrangler deploy" if wrangler.jsonc main is dist/index.js
+    "dev": "wrangler dev src/index.ts" // Or wrangler dev if wrangler.jsonc main is dist/index.js
+  },
+  // ... make sure you have devDependencies ...
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0", // Example version, use your existing or latest
+    "typescript": "^5.0.0", // Example version, use your existing or latest
+    "wrangler": "^3.0.0" // Example version, use your existing or latest (though you are using 4.19.1 via npx)
+  }
 }
