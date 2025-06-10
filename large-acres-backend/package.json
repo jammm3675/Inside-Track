@@ -1,14 +1,10 @@
 {
   "name": "large-acres-backend",
-  "version": "0.0.0",
+  
   "scripts": {
-    "build": "tsc src/index.ts --outDir dist --module esnext --target es2020 --lib es2020,dom --esModuleInterop --skipLibCheck --moduleResolution node",
-    "deploy": "wrangler deploy src/index.ts",
-    "dev": "wrangler dev src/index.ts"
+    "build": "tsc src/index.ts --outDir dist --module esnext --target es2020 --lib es2020,dom --esModuleInterop --skipLibCheck --moduleResolution node", 
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240529.0",
-    "typescript": "^5.0.0",
-    "wrangler": "^3.0.0"
+    "typescript": "^5.0.0"
   }
 }
