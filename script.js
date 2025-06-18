@@ -1,5 +1,5 @@
 // script.js
-const API_BASE_URL = ''; // Define to default to relative paths
+const API_BASE_URL = 'https://large-acres-backend.nikitacirskov0.workers.dev';
 
 let tgUser = null;
 let tgUserId = null;
