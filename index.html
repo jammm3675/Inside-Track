@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Large Acres Race Track</title>
+    <title>Turtle Race Track</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
         <header>
-            <h1>Large Acres Race Track</h1>
+            <h1>Turtle Race Track</h1>
             <div id="player-info">
                 <p>User: <span id="user-id">Loading...</span></p>
                 <p>Horseshoes: <span id="horseshoes-balance">0</span></p>
@@ -19,27 +19,47 @@
 
         <main>
             <div id="race-track-area">
-                <h2>Race Track</h2>
-                <div class="track">
-                    <!-- Horses will be dynamically added here by script.js -->
-                    <div class="horse" id="horse-1" style="left: 0%;">Horse 1</div>
-                    <div class="horse" id="horse-2" style="left: 0%;">Horse 2</div>
-                    <div class="horse" id="horse-3" style="left: 0%;">Horse 3</div>
-                    <div class="horse" id="horse-4" style="left: 0%;">Horse 4</div>
-                    <div class="horse" id="horse-5" style="left: 0%;">Horse 5</div>
+                <h2>Turtle Racers</h2>
+                <div class="track-container"> <!-- Added a container for better structure -->
+                    <div class="start-line"></div>
+                    <div class="track">
+                        <div class="turtle-racer" id="turtle-racer-1" data-turtle-id="1">
+                            <!-- Turtle 1 visual (e.g., text or img) --> T1
+                        </div>
+                        <div class="turtle-racer" id="turtle-racer-2" data-turtle-id="2">
+                            <!-- Turtle 2 visual --> T2
+                        </div>
+                        <div class="turtle-racer" id="turtle-racer-3" data-turtle-id="3">
+                            <!-- Turtle 3 visual --> T3
+                        </div>
+                        <div class="turtle-racer" id="turtle-racer-4" data-turtle-id="4">
+                            <!-- Turtle 4 visual --> T4
+                        </div>
+                    </div>
+                    <div class="finish-line"></div>
+                </div>
+                <!-- Inside <div id="race-track-area"> in index.html, after <div class="track-container"> -->
+                <div id="winner-screen-overlay" class="hidden">
+                    <div id="winner-message-area">
+                        <div id="winner-turtle-display">
+                            <!-- Placeholder for winning turtle visual, e.g., a large turtle icon -->
+                        </div>
+                        <h2 id="win-text">WIN!</h2>
+                        <p id="winning-turtle-details"></p>
+                        <button id="play-again-button">Play Again</button>
+                    </div>
                 </div>
             </div>
 
             <div id="betting-area">
                 <h2>Place Your Bet</h2>
                 <div id="betting-options">
-                    <label for="horse-select">Choose a horse:</label>
-                    <select id="horse-select">
-                        <option value="1">Horse 1</option>
-                        <option value="2">Horse 2</option>
-                        <option value="3">Horse 3</option>
-                        <option value="4">Horse 4</option>
-                        <option value="5">Horse 5</option>
+                    <label for="turtle-select">Choose a turtle:</label>
+                    <select id="turtle-select">
+                        <option value="1">Red Turtle</option>
+                        <option value="2">Blue Turtle</option>
+                        <option value="3">Green Turtle</option>
+                        <option value="4">Yellow Turtle</option>
                     </select>
                     <br><br>
                     <label for="bet-amount-horseshoes">Bet Amount (Horseshoes):</label>
@@ -51,8 +71,8 @@
                     <button id="place-bet-stars">Bet with Stars (Get NFT Fragments)</button>
                 </div>
                 <div id="race-results">
-                    <h3>Race Results</h3>
-                    <p id="winner-info"></p>
+                    <h3>Turtle Race Results</h3>
+                    <p id="turtle-winner-info"></p>
                 </div>
             </div>
 
@@ -88,7 +108,7 @@
         </main>
 
         <footer>
-            <p>&copy; 2023 Large Acres</p>
+            <p>&copy; 2023 Turtle Track</p>
         </footer>
     </div>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>

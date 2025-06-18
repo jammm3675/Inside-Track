@@ -126,3 +126,154 @@ footer {
     font-size: 0.8em;
     color: #777;
 }
+
+/* Container for the track and lines */
+.track-container {
+    position: relative;
+    padding: 10px; /* Reduced padding slightly */
+    background-color: #d0e9c6; /* Lighter green for overall area */
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+/* The actual track where turtles race - This modifies the existing .track style */
+.track {
+    position: relative;
+    width: 100%;
+    height: 220px; /* Slightly more height for spacing */
+    background-color: #a5d6a7; /* Darker green for the track itself */
+    border: 1px solid #81c784;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+/* Start Line Style */
+.start-line {
+    position: absolute;
+    left: 40px; /* Adjust as needed, considering padding of track-container */
+    top: 10px;  /* Adjust considering padding */
+    bottom: 10px;/* Adjust considering padding */
+    width: 3px;
+    background-color: #FFEB3B; /* Yellowish start line */
+    z-index: 1; /* Above track background, below turtles if needed */
+}
+
+/* Finish Line Style */
+.finish-line {
+    position: absolute;
+    right: 40px; /* Adjust as needed */
+    top: 10px;
+    bottom: 10px;
+    width: 5px;  /* Make it slightly thicker */
+    background-color: #E53935; /* Red finish line */
+    z-index: 1;
+}
+
+/* Turtle Racer Style */
+.turtle-racer {
+    position: absolute;
+    left: 10px;      /* Standardized initial left */
+    width: 45px;     /* Slightly larger turtles */
+    height: 35px;    /* Slightly larger turtles */
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 8px; /* More rounded */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9em; /* Adjusted font size */
+    font-weight: bold;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    transition: left 0.1s linear;
+    z-index: 2;
+}
+
+/* Individual Turtle Starting Positions & Colors (examples) - Adjusted top positions */
+#turtle-racer-1 { top: 20px; background-color: #ef5350; color: white; }
+#turtle-racer-2 { top: 70px; background-color: #42a5f5; color: white; }
+#turtle-racer-3 { top: 120px; background-color: #66bb6a; color: white; }
+#turtle-racer-4 { top: 170px; background-color: #ffee58; color: #333; }
+
+/* style.css - Add these rules */
+.turtle-racer.selected-turtle {
+    border: 3px solid gold !important; /* Highlight user's selected turtle */
+    box-shadow: 0 0 12px gold;
+}
+
+.turtle-racer.visual-winner {
+    outline: 4px dashed limegreen; /* Highlight the turtle that visually 'wins' the animation */
+    transform: scale(1.1); /* Slightly larger */
+}
+
+/* style.css - Add these rules */
+.hidden {
+    display: none !important; /* Utility class to hide elements */
+}
+
+#winner-screen-overlay {
+    position: absolute; /* To overlay the race track or game area */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75); /* Semi-transparent background */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100; /* Ensure it's on top */
+    /* Assuming it overlays the .track-container or a similar parent */
+}
+
+#winner-message-area {
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+#winner-turtle-display {
+    width: 80px; /* Adjust as needed */
+    height: 80px; /* Adjust as needed */
+    background-color: #ccc; /* Placeholder color */
+    border-radius: 50%;   /* Make it circular if displaying a single turtle icon */
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em; /* For a placeholder text/icon inside */
+}
+
+#win-text {
+    font-size: 3em;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #4CAF50; /* Default win color, can be changed by JS */
+}
+
+#winning-turtle-details {
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    color: #333; /* Ensure good contrast if background is white */
+}
+
+#play-again-button {
+    padding: 10px 20px;
+    font-size: 1em;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#play-again-button:hover {
+    background-color: #0056b3;
+}
+
+/* Style for the paragraph that shows race results/status */
+#turtle-winner-info {
+    min-height: 20px; /* Ensure it has some height even when empty */
+    font-weight: bold;
+    margin-top: 10px;
+    text-align: center;
+    color: #333; /* Default text color */
+}
